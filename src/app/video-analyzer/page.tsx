@@ -81,14 +81,22 @@ export default function VideoAnalyzerPage() {
     totalElapsedTime: 0,
   });
   
-  const [sessionId] = useState(() => {
-    // Get or create session ID for persistence
-    const existing = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
-    if (existing) return existing;
-    const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem(STORAGE_KEYS.SESSION_ID, newId);
-    return newId;
-  });
+  const [sessionId, setSessionId] = useState<string>("");
+  useEffect(() => {
+    // Get or create session ID for persistence (client-only)
+    try {
+      const existing = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.SESSION_ID) : null;
+      if (existing) {
+        setSessionId(existing);
+        return;
+      }
+      const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem(STORAGE_KEYS.SESSION_ID, newId);
+      setSessionId(newId);
+    } catch (err) {
+      // ignore storage errors in non-browser environments
+    }
+  }, []);
 
   // Persistent storage helpers
   const saveToStorage = useCallback(() => {
