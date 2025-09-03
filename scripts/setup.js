@@ -16,7 +16,62 @@ async function prompt(query) {
 }
 
 function ensureFromExample() {
-  if (!fs.existsSync(envExamplePath)) return '';
+  // Create a comprehensive template if .env.example doesn't exist
+  if (!fs.existsSync(envExamplePath)) {
+    const template = `# =====================================================
+# VIDEO ANALYZER - ENVIRONMENT VARIABLES
+# =====================================================
+
+# =====================================================
+# REQUIRED - For Video Analysis
+# =====================================================
+
+# Google Gemini API key (REQUIRED)
+# Get your free API key: https://aistudio.google.com/app/apikey
+GOOGLE_API_KEY=your_gemini_api_key_here
+
+# =====================================================
+# OPTIONAL - Application Limits
+# =====================================================
+
+# Rate limiting (requests per minute)
+RATE_LIMIT_PER_MINUTE=10
+
+# Video upload limits
+MAX_VIDEO_SIZE_MB=100
+MAX_VIDEOS_PER_BATCH=50
+
+# =====================================================
+# OPTIONAL - Additional AI Services
+# =====================================================
+# These are for additional features (chat, transcription, etc.)
+# Not required for basic video analysis
+
+# OpenAI API (for chat/transcription features)
+# OPENAI_API_KEY=your_openai_api_key_here
+
+# Anthropic API (for chat features)  
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Deepgram API (for voice transcription)
+# DEEPGRAM_API_KEY=your_deepgram_api_key_here
+
+# Replicate API (for image generation)
+# REPLICATE_API_TOKEN=your_replicate_api_key_here
+
+# =====================================================
+# OPTIONAL - Firebase (for user authentication)
+# =====================================================
+# NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key_here
+# NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+# NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+# NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+# NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012
+# NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef123456
+`;
+    return template;
+  }
+  
   try {
     return fs.readFileSync(envExamplePath, 'utf8');
   } catch (e) {
@@ -61,9 +116,11 @@ function ensureFromExample() {
     process.exit(1);
   }
 
-  console.log('\nAll set! Next steps:');
-  console.log('  1) npm install');
-  console.log('  2) npm run dev');
+  console.log('\n✅ Setup complete! Next steps:');
+  console.log('  1) npm install      (install dependencies)');
+  console.log('  2) npm run dev       (start the server)');
   console.log('  3) Open http://localhost:3000/video-analyzer');
+  console.log('\n💡 Tip: Only the Gemini API key is required. Other services are optional.');
+  console.log('📖 See README.md for troubleshooting and additional features.');
 })();
 
