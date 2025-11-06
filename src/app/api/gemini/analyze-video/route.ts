@@ -2,8 +2,8 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { VideoAnalysisApiResponse, AnalysisOptions } from '@/types/video-analysis';
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+// Note: Gemini AI is initialized per-request with user-provided API key
+// No server-side API key required - users provide their own keys
 
 // Enhanced rate limiting storage with better tracking
 interface RateLimitData {
@@ -187,12 +187,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
   const startTime = Date.now();
   
   try {
-    // Check if API key is configured
-    if (!process.env.GOOGLE_API_KEY) {
+    // Parse form data first to get API key
+    const formData = await request.formData();
+    const videoFile = formData.get('video') as File;
+    const optionsString = formData.get('options') as string;
+    const apiKey = formData.get('apiKey') as string;
+
+    // Validate user-provided API key
+    if (!apiKey || typeof apiKey !== 'string') {
       return NextResponse.json({
         success: false,
         error: {
-          message: 'Gemini API key is not configured',
+          message: 'API key is required. Please configure your Google Gemini API key in the settings.',
           code: 'MISSING_API_KEY',
         },
         rateLimitInfo: {
@@ -201,7 +207,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
           requestsInLastMinute: 0,
           maxRequestsPerMinute: RATE_LIMIT_PER_MINUTE,
         },
-      }, { status: 500 });
+      }, { status: 400 });
+    }
+
+    // Validate API key format (Google Gemini keys start with "AIza")
+    if (!apiKey.startsWith('AIza')) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          message: 'Invalid API key format. Google Gemini API keys start with "AIza"',
+          code: 'INVALID_API_KEY',
+        },
+        rateLimitInfo: {
+          remaining: RATE_LIMIT_PER_MINUTE,
+          resetTime: Date.now() + 60000,
+          requestsInLastMinute: 0,
+          maxRequestsPerMinute: RATE_LIMIT_PER_MINUTE,
+        },
+      }, { status: 400 });
     }
 
     // Get client IP for rate limiting
@@ -242,11 +265,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
         }
       });
     }
-
-    // Parse form data
-    const formData = await request.formData();
-    const videoFile = formData.get('video') as File;
-    const optionsString = formData.get('options') as string;
 
     // Validate video file
     if (!videoFile) {
@@ -292,6 +310,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
     // Convert video to base64 for Gemini API
     const videoBase64 = await fileToBase64(videoFile);
     const mimeType = getVideoMimeType(videoFile.name);
+
+    // Initialize Gemini AI with user-provided API key
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     // Initialize Gemini model with structured output configuration
     const model = genAI.getGenerativeModel({ 
@@ -359,7 +380,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
       
       if (geminiError instanceof Error) {
         if (geminiError.message.includes('quota')) {
-          errorMessage = 'API quota exceeded. Please try again later.';
+          errorMessage = 'API quota exceeded. Please try again later or check your API key limits.';
           errorCode = 'QUOTA_EXCEEDED';
         } else if (geminiError.message.includes('safety')) {
           errorMessage = 'Video content was blocked by safety filters.';
@@ -367,6 +388,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<VideoAnal
         } else if (geminiError.message.includes('unsupported')) {
           errorMessage = 'Video format not supported for analysis.';
           errorCode = 'UNSUPPORTED_FORMAT';
+        } else if (geminiError.message.includes('API key') || geminiError.message.includes('invalid')) {
+          errorMessage = 'Invalid API key. Please check your Google Gemini API key and try again.';
+          errorCode = 'INVALID_API_KEY';
         }
       }
 

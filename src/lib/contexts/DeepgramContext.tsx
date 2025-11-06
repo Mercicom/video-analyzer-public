@@ -25,20 +25,31 @@ interface DeepgramContextProviderProps {
   children: ReactNode;
 }
 
-const getApiKey = async (): Promise<string> => {
-  const response = await fetch("/api/deepgram", { cache: "no-store" });
-  const result = await response.json();
-  return result.key;
-};
+// DISABLED: Deepgram integration removed due to security vulnerability
+// The /api/deepgram endpoint exposed API keys to the public
+// This context is kept for backward compatibility but is non-functional
+// To re-enable: implement server-side proxy for Deepgram API
+
+// const getApiKey = async (): Promise<string> => {
+//   const response = await fetch("/api/deepgram", { cache: "no-store" });
+//   const result = await response.json();
+//   return result.key;
+// };
 
 const DeepgramContextProvider: FunctionComponent<DeepgramContextProviderProps> = ({ children }) => {
   const [connection, setConnection] = useState<WebSocket | null>(null);
   const [connectionState, setConnectionState] = useState<SOCKET_STATES>(SOCKET_STATES.closed);
   const [realtimeTranscript, setRealtimeTranscript] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>("Deepgram integration is currently disabled for security reasons");
   const audioRef = useRef<MediaRecorder | null>(null);
 
   const connectToDeepgram = async () => {
+    // DISABLED: Deepgram functionality removed for security
+    setError("Deepgram voice transcription is currently disabled. This feature will be re-enabled in a future update with proper security.");
+    console.warn("Deepgram integration is disabled for security reasons");
+    return;
+    
+    /* Original implementation commented out for security
     try {
       setError(null);
       setRealtimeTranscript("");
@@ -87,6 +98,7 @@ const DeepgramContextProvider: FunctionComponent<DeepgramContextProviderProps> =
       setError(error instanceof Error ? error.message : "An unknown error occurred");
       setConnectionState(SOCKET_STATES.closed);
     }
+    */
   };
 
   const disconnectFromDeepgram = () => {

@@ -9,11 +9,13 @@ import {
   Info,
   CheckCircle2,
   AlertCircle,
-  Clock
+  Clock,
+  Key
 } from "lucide-react";
 import VideoUpload from "@/components/VideoUpload";
 import VideoAnalysisTable from "@/components/VideoAnalysisTable";
 import RateLimitManager from "@/components/RateLimitManager";
+import ApiKeySettings, { getStoredApiKey, hasStoredApiKey } from "@/components/ApiKeySettings";
 import { 
   UploadedVideo, 
   VideoAnalysisResult, 
@@ -37,6 +39,11 @@ const STORAGE_KEYS = {
 type AnalysisStep = 'upload' | 'configure' | 'analyze' | 'results';
 
 export default function VideoAnalyzerPage() {
+  // API Key state
+  const [apiKey, setApiKey] = useState<string>('');
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyChecked, setApiKeyChecked] = useState(false);
+
   // Core state
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('upload');
   const [uploadedVideos, setUploadedVideos] = useState<UploadedVideo[]>([]);
@@ -102,6 +109,26 @@ export default function VideoAnalyzerPage() {
       // ignore storage errors in non-browser environments
       console.warn('Storage not available:', err);
     }
+  }, []);
+
+  // Check for API key on page load
+  useEffect(() => {
+    if (isClient && !apiKeyChecked) {
+      const storedKey = getStoredApiKey();
+      if (storedKey) {
+        setApiKey(storedKey);
+      } else {
+        // Show modal if no API key found
+        setShowApiKeyModal(true);
+      }
+      setApiKeyChecked(true);
+    }
+  }, [isClient, apiKeyChecked]);
+
+  // Handler for saving API key
+  const handleApiKeySave = useCallback((key: string) => {
+    setApiKey(key);
+    setShowApiKeyModal(false);
   }, []);
 
   // Persistent storage helpers
@@ -200,6 +227,13 @@ export default function VideoAnalyzerPage() {
   const startAnalysis = useCallback(async () => {
     if (uploadedVideos.length === 0) return;
 
+    // Check for API key
+    if (!apiKey) {
+      alert('Please configure your Google Gemini API key first. Click the settings icon to add your key.');
+      setShowApiKeyModal(true);
+      return;
+    }
+
     setIsAnalyzing(true);
     setCurrentStep('analyze');
     setProcessingStartTime(new Date());
@@ -233,7 +267,7 @@ export default function VideoAnalyzerPage() {
 
     // Start processing
     processNextVideo();
-  }, [uploadedVideos, rateLimitInfo.maxRequestsPerMinute]);
+  }, [uploadedVideos, rateLimitInfo.maxRequestsPerMinute, apiKey]);
 
   // Enhanced process videos with better queue management for large batches
   const processNextVideo = useCallback(async () => {
@@ -303,6 +337,7 @@ export default function VideoAnalyzerPage() {
       const formData = new FormData();
       formData.append('video', video.file);
       formData.append('options', JSON.stringify(analysisOptions));
+      formData.append('apiKey', apiKey); // Pass user's API key
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
@@ -432,7 +467,7 @@ export default function VideoAnalyzerPage() {
       : 60000; // Wait full minute if no requests remaining
     
     processingTimeout.current = setTimeout(processNextVideo, delay);
-  }, [uploadedVideos, analysisOptions, rateLimitInfo]);
+  }, [uploadedVideos, analysisOptions, rateLimitInfo, apiKey]);
 
   // Queue control handlers
   const pauseProcessing = useCallback(() => {
@@ -607,10 +642,37 @@ export default function VideoAnalyzerPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Video Analyzer</h1>
-          <p className="mt-2 text-lg text-gray-600">
-            Analyze videos in bulk to extract visual hooks, text hooks, voice hooks, scripts, and pain points using AI-powered insights.
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Video Analyzer</h1>
+              <p className="mt-2 text-lg text-gray-600">
+                Analyze videos in bulk to extract visual hooks, text hooks, voice hooks, scripts, and pain points using AI-powered insights.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* API Key Status */}
+              {apiKey ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">API Key Configured</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm text-amber-700 font-medium">API Key Required</span>
+                </div>
+              )}
+              {/* Settings Button */}
+              <button
+                onClick={() => setShowApiKeyModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="Configure API Key"
+              >
+                <Key className="w-4 h-4" />
+                <span className="text-sm font-medium">API Settings</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Progress Steps */}
@@ -805,6 +867,14 @@ export default function VideoAnalyzerPage() {
           </div>
         </div>
       </div>
+
+      {/* API Key Settings Modal */}
+      <ApiKeySettings
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSave={handleApiKeySave}
+        currentKey={apiKey}
+      />
     </div>
   );
 } 
